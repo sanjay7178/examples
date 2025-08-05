@@ -24,8 +24,9 @@ kubectx $PRODUCT_CLUSTER
 PRODUCT_NODE=$(kubectl get pods -o wide -n bookinfo | tail -1 | awk '{ print $7 }')
 
 echo "#### Collecting bookinfo data"
-BI_PORT=$(kubectl get services -n bookinfo | egrep 'productpage' | grep -o -P '(?<=:).*(?=/TCP)')
-echo $BI_PORT
+# Get the Contour Envoy service NodePort
+BI_PORT=$(kubectl get services envoy -n projectcontour -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}')
+echo "Contour Envoy HTTP Port: $BI_PORT"
 
 BI_ADDR_STR=$(kubectl get nodes -o wide | egrep "$PRODUCT_NODE" | awk '{ print $6 }')
 
@@ -35,27 +36,28 @@ echo $WSL
 if [[ $WSL != "" ]]
 then
     echo "#### Bookinfo Reviews Page WSL"
-    echo -e "Started forwarding the port to access the ProductPage UI"
+    echo -e "Started forwarding the port to access the ProductPage UI via Contour"
     echo -e "Please use the CTRL-C command to exit & stop the port forwarding"
     echo -e "Please use the below command to access the Productpage manually"
-    echo -e "kubectl port-forward svc/productpage -n bookinfo $BI_PORT:9080"
+    echo -e "kubectl port-forward svc/envoy -n projectcontour $BI_PORT:80"
     echo -e "\n\nAccess productpage on browser with the URL  http://localhost:$BI_PORT/productpage"
+    echo -e "Make sure to add '127.0.0.1 bookinfo.local' to your /etc/hosts file"
 
-    kubectl port-forward svc/productpage -n bookinfo $BI_PORT:9080
+    kubectl port-forward svc/envoy -n projectcontour $BI_PORT:80
     exit
 fi
 
 echo "#### Checking BookInfo..."
-echo curl http://$BI_ADDR_STR":"$BI_PORT/productpage
-curl http://$BI_ADDR_STR":"$BI_PORT/productpage | egrep 'Comedy of Errors' > /dev/null
+echo curl -H "Host: bookinfo.local" http://$BI_ADDR_STR":"$BI_PORT/productpage
+curl -H "Host: bookinfo.local" http://$BI_ADDR_STR":"$BI_PORT/productpage | egrep 'Comedy of Errors' > /dev/null
 if [ $? -eq 0 ]
 then
     echo "#### Bookinfo Reviews Page OK"
 else
     echo "#### Bookinfo Reviews Page FAIL"
 fi
-echo curl http://$BI_ADDR_STR":"$BI_PORT/productpage
-curl http://$BI_ADDR_STR":"$BI_PORT/productpage | egrep 'Type'  > /dev/null
+echo curl -H "Host: bookinfo.local" http://$BI_ADDR_STR":"$BI_PORT/productpage
+curl -H "Host: bookinfo.local" http://$BI_ADDR_STR":"$BI_PORT/productpage | egrep 'Type'  > /dev/null
 if [ $? -eq 0 ]
 then
     echo "#### Bookinfo Details Page OK"
@@ -69,8 +71,8 @@ else
     echo "#### Product Page FAIL"
 fi
 
-echo curl http://$BI_ADDR_STR":"$BI_PORT/productpage
-curl http://$BI_ADDR_STR":"$BI_PORT/productpage | egrep 'slapstick'  > /dev/null
+echo curl -H "Host: bookinfo.local" http://$BI_ADDR_STR":"$BI_PORT/productpage
+curl -H "Host: bookinfo.local" http://$BI_ADDR_STR":"$BI_PORT/productpage | egrep 'slapstick'  > /dev/null
 if [ $? -eq 0 ]
 then
     echo "#### Bookinfo Reviews Page OK"

@@ -22,6 +22,12 @@ uninstall() {
       kubectx $cluster
       [[ $(kubectl get namespaces | grep $BOOKINFO_NAMESPACE) ]] && kubectl delete namespace $BOOKINFO_NAMESPACE
     done
+    
+    echo "Cleaning up Contour on product cluster"
+    kubectx $PRODUCT_CLUSTER
+    kubectl delete -f ${CONFIG_DIR}/contour-install.yaml --ignore-not-found=true
+    kubectl delete -f ${CONFIG_DIR}/contour-rbac.yaml --ignore-not-found=true
+    kubectl delete namespace projectcontour --ignore-not-found=true
 }
 
 help() {
@@ -41,6 +47,15 @@ while getopts ":d:delete:help:" option; do
 done
 
 kubectx $PRODUCT_CLUSTER
+
+echo "Installing Contour ingress controller"
+kubectl apply -f ${CONFIG_DIR}/contour-rbac.yaml
+kubectl apply -f ${CONFIG_DIR}/contour-install.yaml
+
+echo "Waiting for Contour to be ready"
+kubectl wait --for=condition=available --timeout=120s deployment/contour -n projectcontour
+kubectl wait --for=condition=ready --timeout=120s daemonset/envoy -n projectcontour
+
 kubectl create namespace $BOOKINFO_NAMESPACE
 
 function wait_for_pods {
@@ -66,6 +81,9 @@ kubectl apply -f ${CONFIG_DIR}/productpage.yaml -n $BOOKINFO_NAMESPACE
 
 echo "Waiting for pods to be ready"
 wait_for_pods
+
+echo "Installing HTTPProxy for ingress"
+kubectl apply -f ${CONFIG_DIR}/bookinfo-httpproxy.yaml -n $BOOKINFO_NAMESPACE
 
 echo "Productpage installed"
 kubectl get pods -n $BOOKINFO_NAMESPACE
