@@ -1,0 +1,44 @@
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: details
+  namespace: bookinfo
+spec:
+  slice: bookinfo-slice
+  selector:
+    matchLabels:
+      app: details
+  ports:
+  - name: http
+    protocol: TCP
+    containerPort: 9080
+---
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: reviews
+  namespace: bookinfo
+spec:
+  slice: bookinfo-slice
+  selector:
+    matchLabels:
+      app: reviews
+  ports:
+  - name: http
+    protocol: TCP
+    containerPort: 9080
+---
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: ratings
+  namespace: bookinfo
+spec:
+  slice: bookinfo-slice
+  selector:
+    matchLabels:
+      app: ratings
+  ports:
+  - name: http
+    protocol: TCP
+    containerPort: 9080

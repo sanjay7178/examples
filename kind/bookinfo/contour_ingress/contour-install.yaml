@@ -1,0 +1,446 @@
+# Contour installation manifest
+# This installs Contour ingress controller
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: projectcontour
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: contour
+  namespace: projectcontour
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: envoy
+  namespace: projectcontour
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: contour
+  namespace: projectcontour
+data:
+  contour.yaml: |
+    #
+    # server:
+    #   determine which XDS Server implementation to utilize in Contour.
+    #   xds-server-type: contour
+    #
+    # Specify the Gateway API configuration.
+    # gateway:
+    #   controllerName: projectcontour.io/gateway-controller
+    #
+    # should contour expect to be running inside a k8s cluster
+    # incluster: true
+    #
+    # path to kubeconfig (if not running inside a k8s cluster)
+    # kubeconfig: /path/to/cluster/admin/kubeconfig
+    #
+    # Client request timeout to be passed to Envoy
+    # as the connection manager request_timeout.
+    # Defaults to 0, which Envoy interprets as disabled.
+    # Note that this is the timeout for the whole request,
+    # not an idle timeout.
+    # request-timeout: 10s
+    #
+    # disable ingressroute permitInsecure field
+    disablePermitInsecure: false
+    tls:
+    #   minimum TLS version that Contour will negotiate
+    #   minimum-protocol-version: "1.2"
+    # The following config shows the defaults for the leader election.
+    # leaderelection:
+    #   configmap-name: leader-elect
+    #   configmap-namespace: projectcontour
+    ### Logging options
+    # Default setting
+    accesslog-format: envoy
+    # To enable JSON logging in Envoy
+    # accesslog-format: json
+    # The default fields that will be logged are specified below.
+    # To customise this list, just add or remove entries.
+    # The canonical list is available at
+    # https://godoc.org/github.com/projectcontour/contour/internal/envoy#JSONFields
+    # json-fields:
+    #   - "@timestamp"
+    #   - "authority"
+    #   - "bytes_received"
+    #   - "bytes_sent"
+    #   - "downstream_local_address"
+    #   - "downstream_remote_address"
+    #   - "duration"
+    #   - "method"
+    #   - "path"
+    #   - "protocol"
+    #   - "request_id"
+    #   - "requested_server_name"
+    #   - "response_code"
+    #   - "response_flags"
+    #   - "uber_trace_id"
+    #   - "upstream_cluster"
+    #   - "upstream_host"
+    #   - "upstream_local_address"
+    #   - "upstream_service_time"
+    #   - "user_agent"
+    #   - "x_forwarded_for"
+    #
+    # default-http-versions:
+    # This defines the default set of HTTPS versions the proxy should accept.
+    # HTTP versions are strings of the form "HTTP/xx".
+    # Supported versions are "HTTP/1.1" and "HTTP/2".
+    # Values are stored in the order they are provided.
+    # Note: This only applies to secured requests.
+    #   - "HTTP/2"
+    #   - "HTTP/1.1"
+    #
+    # The following shows the default proxy timeout settings.
+    # timeouts:
+    #   request-timeout: infinity
+    #   connection-idle-timeout: 60s
+    #   stream-idle-timeout: 5m
+    #   max-connection-duration: infinity
+    #   delayclose-timeout: 60s
+    #   connection-shutdown-grace-period: 5s
+    #
+    # Envoy cluster settings.
+    # cluster:
+    #   configure the cluster dns lookup family
+    #   valid options are: auto (default), v4, v6
+    #   dns-lookup-family: auto
+    #
+    # Envoy network settings.
+    # network:
+    #   Configure the number of additional ingress proxy hops from the
+    #   right side of the x-forwarded-for HTTP header to trust.
+    #   num-trusted-hops: 0
+    #   Configure the port used to access the Envoy admin interface.
+    #   admin-port: 9001
+    #
+    # Configure an optional global rate limit service.
+    # rateLimitService:
+    #   Identifies the extension service defining the rate limit service,
+    #   formatted as <namespace>/<name>.
+    #   extensionService: projectcontour/ratelimit
+    #   Defines the rate limit domain to pass to the rate limit service.
+    #   domain: contour
+    #   Defines whether to allow requests to proceed when the rate limit
+    #   service fails to respond with a valid rate limit decision within
+    #   the timeout defined on the extension service.
+    #   failOpen: false
+    #   Defines whether to include the X-RateLimit headers X-RateLimit-Limit,
+    #   X-RateLimit-Remaining, and X-RateLimit-Reset (as defined by the IETF
+    #   Internet-Draft linked below), on responses to clients when the Rate
+    #   Limit Service is consulted for a request.
+    #   ref. https://tools.ietf.org/id/draft-polli-ratelimit-headers-00.html
+    #   enableXRateLimitHeaders: false
+    #
+    # Global Policy settings.
+    # policy:
+    #   # Default headers to set on all requests (unless set/removed on the HTTPProxy object, or overridden
+    #   # by the Route or Service).
+    #   request-headers:
+    #     set:
+    #       # example: the hostname of the Envoy instance that processed the request
+    #       X-Envoy-Hostname: %HOSTNAME%
+    #       # example: add a l5d-dst-override header to instruct Linkerd what service the request is destined for
+    #       l5d-dst-override: %CONTOUR_SERVICE_NAME%.%CONTOUR_NAMESPACE%.svc.cluster.local:%CONTOUR_SERVICE_PORT%
+    #     remove:
+    #       - X-User-Secret-Header
+    #   # default headers to set on all responses (unless set/removed on the HTTPProxy object, or overridden
+    #   # by the Route or Service).
+    #   response-headers:
+    #     set:
+    #       # example: Envoy flags that provide additional details about the response or connection
+    #       X-Envoy-Response-Flags: %RESPONSE_FLAGS%
+    #     remove:
+    #       - X-Internal-Secret-Header
+    #
+    # metrics:
+    #   contour:
+    #     address: 0.0.0.0
+    #     port: 8000
+    #   envoy:
+    #     address: 0.0.0.0
+    #     port: 8002
+    #
+    # listener:
+    #   connection-balancer: exact
+    #   socket-options:
+    #     tos: 0
+    #     traffic-class: 0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: contour
+  name: contour
+  namespace: projectcontour
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # This value of maxSurge means that during a rolling update
+      # the new ReplicaSet will be created first.
+      maxSurge: 50%
+  selector:
+    matchLabels:
+      app: contour
+  template:
+    metadata:
+      labels:
+        app: contour
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: contour
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - args:
+        - serve
+        - --incluster
+        - --xds-address=0.0.0.0
+        - --xds-port=8001
+        - --contour-cafile=/certs/ca.crt
+        - --contour-cert-file=/certs/tls.crt
+        - --contour-key-file=/certs/tls.key
+        - --config-path=/config/contour.yaml
+        command: ["contour"]
+        image: ghcr.io/projectcontour/contour:v1.26.1
+        imagePullPolicy: IfNotPresent
+        name: contour
+        ports:
+        - containerPort: 8001
+          name: xds
+          protocol: TCP
+        - containerPort: 8000
+          name: metrics
+          protocol: TCP
+        - containerPort: 6060
+          name: debug
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+        readinessProbe:
+          tcpSocket:
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        volumeMounts:
+        - name: contourcert
+          mountPath: /certs
+          readOnly: true
+        - name: contour-config
+          mountPath: /config
+          readOnly: true
+        env:
+        - name: CONTOUR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+      dnsPolicy: ClusterFirst
+      serviceAccountName: contour
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: contourcert
+        secret:
+          secretName: contourcert
+      - name: contour-config
+        configMap:
+          name: contour
+          defaultMode: 0644
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: envoy
+  name: envoy
+  namespace: projectcontour
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
+  selector:
+    matchLabels:
+      app: envoy
+  template:
+    metadata:
+      labels:
+        app: envoy
+    spec:
+      containers:
+      - command:
+        - /bin/contour
+        args:
+        - envoy
+        - shutdown-manager
+        image: ghcr.io/projectcontour/contour:v1.26.1
+        imagePullPolicy: IfNotPresent
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/contour
+              - envoy
+              - shutdown
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8090
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        name: shutdown-manager
+        ports:
+        - containerPort: 8090
+          name: metrics
+          protocol: TCP
+        resources: {}
+        volumeMounts:
+        - name: envoy-admin
+          mountPath: /admin
+      - args:
+        - -c
+        - /config/envoy.json
+        - --service-cluster $(CONTOUR_NAMESPACE)
+        - --service-node $(ENVOY_POD_NAME)
+        - --log-level info
+        command:
+        - envoy
+        image: docker.io/envoyproxy/envoy:v1.27.2
+        imagePullPolicy: IfNotPresent
+        name: envoy
+        env:
+        - name: CONTOUR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: ENVOY_POD_NAME
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.name
+        ports:
+        - containerPort: 8080
+          hostPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          hostPort: 443
+          name: https
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8002
+          initialDelaySeconds: 3
+          periodSeconds: 4
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /config
+          readOnly: true
+        - name: envoycert
+          mountPath: /certs
+          readOnly: true
+        - name: envoy-admin
+          mountPath: /admin
+        lifecycle:
+          preStop:
+            httpGet:
+              path: /shutdown
+              port: 8090
+              scheme: HTTP
+      initContainers:
+      - args:
+        - bootstrap
+        - /config/envoy.json
+        - --xds-address=contour
+        - --xds-port=8001
+        - --xds-resource-version=v3
+        - --resources-dir=/config/resources
+        - --envoy-cafile=/certs/ca.crt
+        - --envoy-cert-file=/certs/tls.crt
+        - --envoy-key-file=/certs/tls.key
+        command:
+        - contour
+        image: ghcr.io/projectcontour/contour:v1.26.1
+        imagePullPolicy: IfNotPresent
+        name: envoy-initconfig
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /config
+        - name: envoycert
+          mountPath: /certs
+          readOnly: true
+        env:
+        - name: CONTOUR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+      automountServiceAccountToken: false
+      serviceAccountName: envoy
+      terminationGracePeriodSeconds: 300
+      volumes:
+      - name: envoy-config
+        emptyDir: {}
+      - name: envoycert
+        secret:
+          secretName: envoycert
+      - name: envoy-admin
+        emptyDir: {}
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contour
+  namespace: projectcontour
+spec:
+  ports:
+  - port: 8001
+    name: xds
+    protocol: TCP
+    targetPort: 8001
+  selector:
+    app: contour
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy
+  namespace: projectcontour
+spec:
+  externalTrafficPolicy: Local
+  ports:
+  - port: 80
+    name: http
+    protocol: TCP
+    targetPort: 8080
+  - port: 443
+    name: https
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: envoy
+  type: NodePort

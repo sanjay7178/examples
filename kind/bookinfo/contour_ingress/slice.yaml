@@ -1,0 +1,35 @@
+apiVersion: controller.kubeslice.io/v1alpha1
+kind: SliceConfig
+metadata:
+  name: bookinfo-slice
+  namespace: kubeslice-demo
+spec:
+  sliceSubnet: 10.1.0.0/16
+  sliceType: Application
+  sliceGatewayProvider:
+    sliceGatewayType: OpenVPN
+    sliceCaType: Local
+  sliceIpamType: Local
+  clusters:
+  - ks-w-1
+  - ks-w-2
+  qosProfileDetails:
+    queueType: HTB
+    priority: 0
+    tcType: BANDWIDTH_CONTROL
+    bandwidthCeilingKbps: 5000
+    bandwidthGuaranteedKbps: 1000
+    dscpClass: AF11
+  namespaceIsolationProfile:
+    applicationNamespaces:
+    - namespace: bookinfo
+      clusters:
+      - '*'
+    isolationEnabled: false
+    allowedNamespaces:
+    - namespace: kube-system
+      clusters:
+      - '*'
+    - namespace: projectcontour
+      clusters:
+      - '*'

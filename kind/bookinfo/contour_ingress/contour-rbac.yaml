@@ -1,0 +1,172 @@
+# Contour RBAC and certificates
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: contour
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - endpoints
+  - nodes
+  - pods
+  - secrets
+  verbs:
+  - list
+  - watch
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.k8s.io
+  resources:
+  - ingresses
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups: 
+  - networking.k8s.io
+  resources:
+  - ingresses/status
+  verbs:
+  - create
+  - get
+  - update
+- apiGroups:
+  - projectcontour.io
+  resources:
+  - httpproxies
+  - tlscertificatedelegations
+  - extensionservices
+  - contourconfigurations
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - projectcontour.io
+  resources:
+  - httpproxies/status
+  - extensionservices/status
+  - contourconfigurations/status
+  verbs:
+  - create
+  - get
+  - update
+- apiGroups:
+  - networking.x-k8s.io
+  resources:
+  - gatewayclasses
+  - gateways
+  - httproutes
+  - referencepolicies
+  - tlsroutes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - networking.x-k8s.io
+  resources:
+  - gatewayclasses/status
+  - gateways/status
+  - httproutes/status
+  - tlsroutes/status
+  verbs:
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: contour
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: contour
+subjects:
+- kind: ServiceAccount
+  name: contour
+  namespace: projectcontour
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: contour-leaderelection
+  namespace: projectcontour
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - get
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: contour-leaderelection
+  namespace: projectcontour
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: contour-leaderelection
+subjects:
+- kind: ServiceAccount
+  name: contour
+  namespace: projectcontour
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: contour-certgen
+  namespace: projectcontour
+spec:
+  template:
+    metadata:
+      labels:
+        app: contour-certgen
+    spec:
+      containers:
+      - name: contour
+        image: ghcr.io/projectcontour/contour:v1.26.1
+        imagePullPolicy: IfNotPresent
+        command:
+        - contour
+        - certgen
+        - --kube
+        - --incluster
+        - --overwrite
+        - --secrets-format=compact
+        - --namespace=$(CONTOUR_NAMESPACE)
+        env:
+        - name: CONTOUR_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        volumeMounts:
+        - name: certs
+          mountPath: /certs
+      volumes:
+      - name: certs
+        emptyDir: {}
+      restartPolicy: Never
+      serviceAccountName: contour
+  parallelism: 1
+  completions: 1
+  backoffLimit: 1
