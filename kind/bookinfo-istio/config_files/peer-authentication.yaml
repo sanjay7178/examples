@@ -1,0 +1,42 @@
+# PeerAuthentication to enforce strict mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: bookinfo
+spec:
+  mtls:
+    mode: STRICT
+---
+# AuthorizationPolicy to allow communication between bookinfo services
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: bookinfo-allow
+  namespace: bookinfo
+spec:
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-productpage"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-details"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-reviews"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-ratings"]
+    to:
+    - operation:
+        methods: ["GET"]
