@@ -35,5 +35,22 @@ See supported options by doing...
 bash tutorial.sh --help 
 ```
 
+## Examples
+
+### bookinfo
+A basic bookinfo application deployment across two KubeSlice clusters without service mesh.
+
+### bookinfo-istio
+An enhanced bookinfo application deployment with Istio service mesh and mTLS encryption across two KubeSlice clusters. This example demonstrates:
+- Cross-cluster service mesh deployment
+- Strict mTLS encryption between services
+- Istio Gateway for external access
+- Service-to-service authentication and authorization
+
+See [bookinfo-istio/README.md](bookinfo-istio/README.md) for detailed setup and usage instructions.
+
+### boutique
+Google's Online Boutique microservices demo application deployment.
+
 ## More Info
 A description of how to configure kind clusters from scratch is available at [Getting Started with Kind Clusters](https://docs.avesha.io/documentation/open-source/0.2.0/getting-started-with-kind-clusters).
