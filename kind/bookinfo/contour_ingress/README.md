@@ -17,9 +17,9 @@ Internet -> Contour Envoy (NodePort) -> HTTPProxy -> ProductPage Service (Cluste
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
     - [1. Setup Environment Variables](#1-setup-environment-variables)
-    - [2. Product Cluster Setup](#2-product-cluster-setup)
-    - [3. Services Cluster Setup](#3-services-cluster-setup)
-    - [4. KubeSlice Controller Setup](#4-kubeslice-controller-setup)
+    - [2. KubeSlice Setup (Controller and Workers)](#2-kubeslice-setup-controller-and-workers)
+    - [3. Product Cluster Setup](#3-product-cluster-setup)
+    - [4. Services Cluster Setup](#4-services-cluster-setup)
   - [Testing the Application](#testing-the-application)
     - [Option 1: Access via Contour Ingress](#option-1-access-via-contour-ingress)
     - [Option 2: Port-Forward the Product Page](#option-2-port-forward-the-product-page)
@@ -53,18 +53,51 @@ Internet -> Contour Envoy (NodePort) -> HTTPProxy -> ProductPage Service (Cluste
 
 ```bash
 # Define cluster contexts and namespace
-export PRODUCT_CLUSTER="kind-ks-w-1"      # Cluster for productpage and ingress
-export CONTROLLER_CLUSTER="kind-ks-ctrl"   # KubeSlice controller cluster
-export SERVICES_CLUSTER="kind-ks-w-2"     # Cluster for backend services
-export BOOKINFO_NAMESPACE="bookinfo"       # Namespace for bookinfo components
+export PRODUCT_CLUSTER="kind-ks-w-1"      
+export CONTROLLER_CLUSTER="kind-ks-ctrl"  
+export SERVICES_CLUSTER="kind-ks-w-2"     
+export BOOKINFO_NAMESPACE="bookinfo"       
+export SLICE_NAME="bookinfo-slice"         # KubeSlice slice name  
 ```
 
-### 2. Product Cluster Setup
+### 2. KubeSlice Setup (Controller and Workers)
 
 ```bash
-# Switch to product cluster and create namespace
+# Verify KubeSlice controller and worker agents are installed
+kubectx $CONTROLLER_CLUSTER
+kubectl get pods -n kubeslice-controller --no-headers
+
 kubectx $PRODUCT_CLUSTER
-kubectl create namespace $BOOKINFO_NAMESPACE
+kubectl get pods -n kubeslice-system --no-headers
+
+kubectx $SERVICES_CLUSTER
+kubectl get pods -n kubeslice-system --no-headers
+
+# Apply the slice configuration on the controller
+kubectx $CONTROLLER_CLUSTER
+kubectl apply -f slice.yaml
+
+# Create and label the application namespace on both worker clusters so workloads join the slice
+kubectx $PRODUCT_CLUSTER
+kubectl create namespace $BOOKINFO_NAMESPACE || true
+kubectl label namespace $BOOKINFO_NAMESPACE kubeslice.io/slice=$SLICE_NAME --overwrite
+
+kubectx $SERVICES_CLUSTER
+kubectl create namespace $BOOKINFO_NAMESPACE || true
+kubectl label namespace $BOOKINFO_NAMESPACE kubeslice.io/slice=$SLICE_NAME --overwrite
+
+# Wait for slice gateways to be ready on both worker clusters
+kubectx $PRODUCT_CLUSTER
+kubectl get workerslicegateway -n kubeslice-system
+kubectx $SERVICES_CLUSTER
+kubectl get workerslicegateway -n kubeslice-system
+```
+
+### 3. Product Cluster Setup
+
+```bash
+# Switch to product cluster (namespace already created and labeled in Step 2)
+kubectx $PRODUCT_CLUSTER
 
 # Install Contour ingress controller and its components
 kubectl apply -f https://projectcontour.io/quickstart/contour.yaml
@@ -74,7 +107,7 @@ kubectl apply -f contour-rbac.yaml
 # Verify Contour is ready
 kubectl get pods -n projectcontour -o wide
 
-# Deploy productpage component
+# Deploy productpage component into the slice namespace
 kubectl apply -f ${CONFIG_DIR}/productpage.yaml -n $BOOKINFO_NAMESPACE
 
 # Configure HTTP Proxy for ingress routing
@@ -84,12 +117,11 @@ kubectl apply -f ${CONFIG_DIR}/bookinfo-httpproxy.yaml -n $BOOKINFO_NAMESPACE
 kubectl get pods -n $BOOKINFO_NAMESPACE
 ```
 
-### 3. Services Cluster Setup
+### 4. Services Cluster Setup
 
 ```bash
-# Switch to services cluster and create namespace
+# Switch to services cluster (namespace already created and labeled in Step 2)
 kubectx $SERVICES_CLUSTER
-kubectl create namespace $BOOKINFO_NAMESPACE
 
 # Install backend services
 kubectl apply -f details.yaml -n $BOOKINFO_NAMESPACE
@@ -101,14 +133,6 @@ kubectl apply -f serviceexports.yaml -n $BOOKINFO_NAMESPACE
 
 # Verify service exports were created
 kubectl get serviceexport -n $BOOKINFO_NAMESPACE
-```
-
-### 4. KubeSlice Controller Setup
-
-Apply the slice configuration
-```bash
-kubectx $CONTROLLER_CLUSTER
-kubectl apply -f slice.yaml
 ```
 
 ## Testing the Application
@@ -171,6 +195,10 @@ Verify DNS configuration for cross-cluster services
 ```bash
 kubectl get configmap -n kubeslice-system kubeslice-dns -o yaml
 ```
+Verify namespace membership on the slice
+```bash
+kubectl get ns $BOOKINFO_NAMESPACE --show-labels
+```
 
 ## Cleanup
 
@@ -185,4 +213,8 @@ kubectl delete namespace $BOOKINFO_NAMESPACE
 kubectl delete -f contour-install.yaml
 kubectl delete -f contour-rbac.yaml
 kubectl delete namespace projectcontour
+
+# Remove slice configuration
+kubectx $CONTROLLER_CLUSTER
+kubectl delete -f slice.yaml
 ```
