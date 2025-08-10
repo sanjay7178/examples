@@ -364,6 +364,14 @@ GATEWAY_IP=$(kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-
 echo "Access the Bookinfo application at: http://$GATEWAY_IP/productpage"
 ```
 
+### 12. Verify the Application UI
+
+Once you access the Bookinfo productpage through the Istio Ingress Gateway, you should see a page similar to the screenshot below:
+
+![Bookinfo Productpage Screenshot](./productpage-istio-gw.png)
+
+*Figure: Bookinfo Productpage served through Istio Ingress Gateway with mTLS enabled*
+
 ## Troubleshooting
 
 ### 1. ServiceImports Stuck in PENDING State
@@ -382,7 +390,7 @@ kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f co
 
 ### 2. Istio CRDs Not Installed
 
-If you encounter errors about missing Istio CRDs, reinstall Istio:
+If you encounter errors about missing Istio CRDs:
 
 ```bash
 # Install Istio using istioctl
@@ -412,14 +420,6 @@ You have successfully deployed the Bookinfo application across two KubeSlice-con
 3. External access through Istio Gateway
 
 For more details on the architecture and features, refer to the [README.md](./README.md).
-  resourceVersion: ""
-```
-
-### 11. Access the Application
-
-Access the Bookinfo application using the Istio Ingress Gateway's external IP:
-
-```bash
 # Get the Ingress Gateway IP
 GATEWAY_IP=$(kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get svc istio-ingress -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
