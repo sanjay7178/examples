@@ -1,0 +1,54 @@
+apiVersion: controller.kubeslice.io/v1alpha1
+kind: SliceConfig
+metadata:
+  name: bookinfo-slice
+  namespace: kubeslice-kubeslice-avesha
+spec:
+  sliceSubnet: 10.1.0.0/16
+  sliceType: Application
+  sliceGatewayProvider:
+    sliceGatewayType: OpenVPN
+    sliceCaType: Local
+  sliceIpamType: Local
+  clusters:
+    - ks-worker-1
+    - ks-worker-2
+  qosProfileDetails:
+    queueType: HTB
+    priority: 1
+    tcType: BANDWIDTH_CONTROL
+    bandwidthCeilingKbps: 5120
+    bandwidthGuaranteedKbps: 2560
+    dscpClass: AF11
+  namespaceIsolationProfile:
+    applicationNamespaces:
+     - namespace: bookinfo
+       clusters:
+       - '*'
+     - namespace: istio-system
+       clusters:
+       - '*'
+    isolationEnabled: false  # Set to true if you want strict namespace isolation
+    allowedNamespaces:
+     - namespace: kube-system
+       clusters:
+       - '*'
+  externalGatewayConfig:
+    - ingress:
+        enabled: true
+      egress:
+        enabled: false
+      nsIngress:
+        enabled: false
+      gatewayType: istio
+      clusters:
+        - ks-worker-1  # Product cluster with productpage service
+    - ingress:
+        enabled: false
+      egress:
+        enabled: true
+      nsIngress:
+        enabled: false
+      gatewayType: istio
+      clusters:
+        - ks-worker-2  # Services cluster with details, reviews, ratings

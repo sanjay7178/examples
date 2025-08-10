@@ -1,0 +1,53 @@
+##################################################################################
+# Details ServiceExport
+##################################################################################
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: details
+spec:
+  slice: bookinfo-slice  #Replace Slice Name
+  selector:
+    matchLabels:
+      app: details
+  ingressEnabled: false
+  ports:
+  - name: http
+    containerPort: 9080
+    protocol: TCP
+---
+##################################################################################
+# Reviews ServiceExport
+##################################################################################
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: reviews
+spec:
+  slice: bookinfo-slice  #Replace Slice Name
+  selector:
+    matchLabels:
+      app: reviews
+  ingressEnabled: false
+  ports:
+  - name: http
+    containerPort: 9080
+    protocol: TCP
+---
+##################################################################################
+# Ratings ServiceExport
+##################################################################################
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: ratings
+spec:
+  slice: bookinfo-slice  #Replace Slice Name
+  selector:
+    matchLabels:
+      app: ratings
+  ingressEnabled: false
+  ports:
+  - name: http
+    containerPort: 9080
+    protocol: TCP

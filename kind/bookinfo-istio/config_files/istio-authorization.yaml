@@ -1,0 +1,73 @@
+# Apply authorization policy to Cluster 1 (Product Cluster)
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: bookinfo-policy
+  namespace: bookinfo
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-productpage"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-reviews"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-details"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-ratings"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        namespaces: ["istio-system"]
+---
+# Apply same policy to Cluster 2 (Services Cluster)
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: bookinfo-policy
+  namespace: bookinfo
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-productpage"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-reviews"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-details"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-ratings"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
+        namespaces: ["istio-system"]
