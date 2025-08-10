@@ -2,6 +2,35 @@
 
 This example deploys the Istio Bookinfo application across two KubeSlice-connected clusters with Istio service mesh and mTLS enabled for secure service-to-service communication.
 
+## Getting Started
+
+### Clone the Repository
+
+Begin by cloning the repository and navigating to the bookinfo-istio example directory:
+
+```bash
+# Clone the repository
+git clone https://github.com/kubeslice/examples.git
+
+# Navigate to the bookinfo-istio example directory
+cd examples/kind/bookinfo-istio
+```
+
+### Cluster Information
+
+This guide uses the following Kubernetes clusters:
+
+- **Controller Cluster**: `gke_graphic-transit-458312-f7_us-central1_ks-controller`
+  - The KubeSlice controller that manages the slice configuration
+  
+- **Product Cluster (Worker 1)**: `gke_graphic-transit-458312-f7_us-east1_ks-worker-1`
+  - Hosts the productpage service and Istio ingress gateway
+  
+- **Services Cluster (Worker 2)**: `gke_graphic-transit-458312-f7_us-east1_ks-worker-2`
+  - Hosts the details, reviews, and ratings services
+
+> **Note**: You should replace these cluster contexts with your own when following this guide. The contexts mentioned are specific to the original setup.
+
 ## Prerequisites
 
 - Two Kubernetes clusters connected via KubeSlice
@@ -21,7 +50,7 @@ First, we need to create a slice configuration on the KubeSlice controller:
 kubectx gke_graphic-transit-458312-f7_us-central1_ks-controller
 
 # Apply slice configuration
-kubectl apply -f '/home/sanjay7178/examples2/kind/bookinfo-istio/config_files/slice-config.yaml'
+kubectl apply -f 'config_files/slice-config.yaml'
 ```
 
 Expected output:
@@ -420,35 +449,6 @@ You have successfully deployed the Bookinfo application across two KubeSlice-con
 3. External access through Istio Gateway
 
 For more details on the architecture and features, refer to the [README.md](./README.md).
-# Get the Ingress Gateway IP
-GATEWAY_IP=$(kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get svc istio-ingress -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-
-echo "Access the Bookinfo application at: http://$GATEWAY_IP/productpage"
-```
-
-## Troubleshooting
-
-### 1. ServiceImports Stuck in PENDING State
-
-If ServiceImports are stuck in PENDING state:
-
-```bash
-# Check status
-kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get serviceimports -n bookinfo
-kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get serviceexports -n bookinfo
-
-# Delete and recreate the ServiceExport
-kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 delete serviceexport <service-name> -n bookinfo
-kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/serviceexports.yaml -n bookinfo
-```
-
-### 2. Istio CRDs Not Installed
-
-If you encounter errors about missing Istio CRDs:
-
-```bash
-# Install Istio using istioctl
-istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 -y
 istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 -y
 ```
 
