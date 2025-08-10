@@ -1,305 +1,476 @@
-# Bookinfo with Istio and mTLS on KubeSlice
+# Bookinfo with Istio and mTLS on KubeSlice - Deployment Guide
 
 This example deploys the Istio Bookinfo application across two KubeSlice-connected clusters with Istio service mesh and mTLS enabled for secure service-to-service communication.
 
-## Architecture
-
-```
-┌─────────────────────────────────────┐    ┌─────────────────────────────────────┐
-│          Cluster 1 (Product)       │    │        Cluster 2 (Services)        │
-│  ┌─────────────────────────────────┐ │    │ ┌─────────────────────────────────┐ │
-│  │        productpage              │ │    │ │             details             │ │
-│  │    ┌─────────────────────┐      │ │    │ │    ┌─────────────────────┐      │ │
-│  │    │   Istio Proxy       │      │ │    │ │    │   Istio Proxy       │      │ │
-│  │    │    (Envoy)          │◄─────┼─┼────┼─┼────►   (Envoy)          │      │ │
-│  │    └─────────────────────┘      │ │    │ │    └─────────────────────┘      │ │
-│  │    │   productpage       │      │ │    │ │    │   details           │      │ │
-│  │    │   container         │      │ │    │ │    │   container         │      │ │
-│  │    └─────────────────────┘      │ │    │ │    └─────────────────────┘      │ │
-│  └─────────────────────────────────┘ │    │ └─────────────────────────────────┘ │
-│                                      │    │                                      │
-│  ┌─────────────────────────────────┐ │    │ ┌─────────────────────────────────┐ │
-│  │      Istio Gateway              │ │    │ │             reviews             │ │
-│  │  ┌─────────────────────────────┐ │ │    │ │    ┌─────────────────────┐      │ │
-│  │  │      External Access        │ │ │    │ │    │   Istio Proxy       │      │ │
-│  │  │     (port 80/443)           │ │ │    │ │    │    (Envoy)          │◄─────┼─┼──┐
-│  │  └─────────────────────────────┘ │ │    │ │    └─────────────────────┘      │ │  │
-│  └─────────────────────────────────┘ │    │ │    │   reviews           │      │ │  │
-│                                      │    │ │    │   container         │      │ │  │
-│           KubeSlice                  │    │ │    └─────────────────────┘      │ │  │
-│        Service Mesh                  │    │ └─────────────────────────────────┘ │  │
-└─────────────────────────────────────┘    │                                      │  │
-                                           │ ┌─────────────────────────────────┐ │  │
-                                           │ │             ratings             │ │  │
-                                           │ │    ┌─────────────────────┐      │ │  │
-                                           │ │    │   Istio Proxy       │      │ │  │
-                                           │ │    │    (Envoy)          │◄─────┼─┼──┘
-                                           │ │    └─────────────────────┘      │ │
-                                           │ │    │   ratings           │      │ │
-                                           │ │    │   container         │      │ │
-                                           │ │    └─────────────────────┘      │ │
-                                           │ └─────────────────────────────────┘ │
-                                           └─────────────────────────────────────┘
-```
-
-### Service Distribution
-- **Cluster 1 (Product Cluster)**: Runs the productpage service with Istio Gateway for external access
-- **Cluster 2 (Services Cluster)**: Runs details, ratings, and reviews services
-- **Service Mesh**: Istio with automatic sidecar injection on both clusters
-- **Security**: Strict mTLS enabled between all services
-- **Cross-cluster connectivity**: KubeSlice ServiceExport/ServiceImport with service mesh overlay
-
-### Security Features
-- **Mutual TLS (mTLS)**: All service-to-service communication is encrypted and authenticated
-- **PeerAuthentication**: Enforces STRICT mTLS mode for the bookinfo namespace
-- **AuthorizationPolicy**: Controls which services can communicate with each other
-- **Certificate Management**: Automatic certificate rotation via Istio's Certificate Authority
-
 ## Prerequisites
 
-Before deploying this example, ensure you have:
+- Two Kubernetes clusters connected via KubeSlice
+- `kubectl` installed and configured to access both clusters
+- `kubectx` for easier cluster switching (optional)
+- `istioctl` for Istio installation and management
+- Sufficient permissions to deploy resources in both clusters
 
-1. **KubeSlice Environment**: Two kind clusters connected via KubeSlice
-2. **Required Tools**:
-   - `kubectl` - Kubernetes command-line tool
-   - `kubectx` (optional) - For easier cluster switching
-   - `istioctl` (optional) - For advanced Istio operations
+## Deployment Steps
 
-3. **Cluster Requirements**:
-   - Kubernetes 1.21+ on both clusters
-   - Sufficient resources (2+ CPU cores, 4GB+ RAM per cluster)
-   - Network connectivity between clusters via KubeSlice
+### 1. Create KubeSlice Configuration
 
-Run the prerequisites check:
-```bash
-./check-prerequisites.sh
-```
-
-## Quick Start
-
-### 1. Check Prerequisites
-```bash
-./check-prerequisites.sh
-```
-
-### 2. Install Istio (if not already installed)
-```bash
-./install-istio.sh
-```
-
-### 3. Deploy Bookinfo with mTLS
-```bash
-./bookinfo.sh
-```
-
-### 4. Test the Deployment
-```bash
-./utils/bookinfo_test.sh
-```
-
-### 5. Verify mTLS Configuration
-```bash
-./utils/verify_mtls.sh
-```
-
-## Detailed Usage
-
-### Installation Scripts
-
-#### install-istio.sh
-Installs Istio service mesh on both KubeSlice clusters:
-- Downloads and applies Istio manifests
-- Configures Istio discovery service (istiod)
-- Sets up mTLS policies
-- Verifies installation
+First, we need to create a slice configuration on the KubeSlice controller:
 
 ```bash
-./install-istio.sh --help
+# Switch to controller context
+kubectx gke_graphic-transit-458312-f7_us-central1_ks-controller
+
+# Apply slice configuration
+kubectl apply -f '/home/sanjay7178/examples2/kind/bookinfo-istio/config_files/slice-config.yaml'
 ```
 
-#### bookinfo.sh
-Main deployment script that:
-- Verifies Istio installation
-- Creates bookinfo namespace with sidecar injection enabled
-- Deploys services across clusters
-- Configures KubeSlice ServiceExports
-- Applies mTLS policies
-- Sets up Istio Gateway for external access
+Expected output:
+```
+sliceconfig.controller.kubeslice.io/bookinfo-slice created
+```
+
+### 2. Install Istio on Both Clusters
+
+Installing Istio using istioctl provides a simpler, more direct approach with built-in profiles.
 
 ```bash
-# Deploy the application
-./bookinfo.sh
+# Install Istio on Worker Cluster 1 (Product Cluster)
+istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 -y
 
-# Remove the application
-./bookinfo.sh --delete
-
-# Show help
-./bookinfo.sh --help
+# Install Istio on Worker Cluster 2 (Services Cluster)
+istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 -y
 ```
 
-### Testing and Verification
+Expected output for each command:
+```
+        |\          
+        | \         
+        |  \        
+        |   \       
+      /||    \      
+     / ||     \     
+    /  ||      \    
+   /   ||       \   
+  /    ||        \  
+ /     ||         \ 
+/______||__________\
+____________________
+  \__       _____/  
+     \_____/        
 
-#### bookinfo_test.sh
-Comprehensive test suite that verifies:
-- Basic application functionality
-- Istio sidecar injection
-- mTLS configuration
-- Service-to-service connectivity
-- Istio networking components
+✔ Istio core installed ⛵️
+✔ Istiod installed 🧠
+✔ CNI installed 🪢
+✔ Egress gateways installed 🛫
+✔ Ingress gateways installed 🛬
+✔ Installation complete
+```
 
-#### verify_mtls.sh
-Specialized mTLS verification script that:
-- Checks certificate presence in Envoy proxies
-- Verifies PeerAuthentication policies
-- Tests encrypted communication between services
-- Validates TLS configuration
+> **Note**: If you see warnings about version downgrades or revision changes, these are generally safe to proceed with for a fresh installation.
 
-### Configuration Files
+#### 2.1 Verify Istio Installation
 
-#### Service Configurations
-- `productpage.yaml` - Frontend service with Istio sidecar
-- `details.yaml` - Book details service with Istio sidecar
-- `reviews.yaml` - Book reviews service with Istio sidecar
-- `ratings.yaml` - Star ratings service with Istio sidecar
+```bash
+# Check Istio services
+kubectl get svc -n istio-system
+```
 
-#### Istio Configuration
-- `gateway.yaml` - Istio Gateway for external access
-- `peer-authentication.yaml` - mTLS enforcement policy
-- `istio-base.yaml` - Basic Istio installation manifest
-- `istio-discovery.yaml` - Istio control plane configuration
+Expected output:
+```
+NAME                   TYPE           CLUSTER-IP       EXTERNAL-IP     PORT(S)                                      AGE
+istio-egressgateway    ClusterIP      10.96.x.x        <none>          80/TCP,443/TCP                               1m
+istio-ingressgateway   LoadBalancer   10.96.x.x        34.23.96.143    15021:31xxx/TCP,80:31xxx/TCP,443:31xxx/TCP   1m
+istiod                 ClusterIP      10.96.x.x        <none>          15010/TCP,15012/TCP,443/TCP,15014/TCP        1m
+```
 
-#### KubeSlice Configuration
-- `serviceexports.yaml` - Cross-cluster service exports
+Get the external IP of the ingress gateway:
+
+```bash
+kubectl get svc istio-ingressgateway -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+```
+
+Expected output:
+```
+34.23.96.143
+```
+
+### 3. Prepare Application Namespace
+
+Perform these steps on both worker clusters:
+
+```bash
+# Create bookinfo namespace
+kubectl create namespace bookinfo
+
+# Enable Istio injection
+kubectl label namespace bookinfo istio-injection=enabled
+```
+
+Expected output:
+```
+namespace/bookinfo created
+namespace/bookinfo labeled
+```
+
+> **Note**: If the namespace already exists, you'll see: "Error from server (AlreadyExists): namespaces "bookinfo" already exists"
+
+### 4. Deploy Bookinfo Application
+
+#### 4.1 Deploy Frontend on Worker Cluster 1
+
+```bash
+# Deploy productpage service
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/productpage.yaml -n bookinfo
+
+# Deploy Istio gateway for external access
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/gateway.yaml -n bookinfo
+```
+
+Expected output:
+```
+service/productpage created
+serviceaccount/bookinfo-productpage created
+deployment.apps/productpage-v1 created
+gateway.networking.istio.io/bookinfo-gateway created
+virtualservice.networking.istio.io/bookinfo created
+```
+
+#### 4.2 Deploy Backend Services on Worker Cluster 2
+
+```bash
+# Deploy details service
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/details.yaml -n bookinfo
+
+# Deploy reviews service
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/reviews.yaml -n bookinfo
+
+# Deploy ratings service
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/ratings.yaml -n bookinfo
+```
+
+Expected output:
+```
+service/details created
+serviceaccount/bookinfo-details created
+deployment.apps/details-v1 created
+service/reviews created
+serviceaccount/bookinfo-reviews created
+deployment.apps/reviews-v3 created
+service/ratings created
+serviceaccount/bookinfo-ratings created
+deployment.apps/ratings-v1 created
+```
+
+### 5. Configure KubeSlice ServiceExports
+
+Export services from Worker Cluster 2 to make them accessible in Worker Cluster 1:
+
+```bash
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/serviceexports.yaml -n bookinfo
+```
+
+Expected output:
+```
+serviceexport.networking.kubeslice.io/details created
+serviceexport.networking.kubeslice.io/reviews created
+serviceexport.networking.kubeslice.io/ratings created
+```
+
+Verify ServiceExports on Worker Cluster 2:
+
+```bash
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get serviceexports -n bookinfo
+```
+
+Initial output (status may be PENDING):
+```
+NAME      SLICE    INGRESS   SERVICEPORT(S)   PORT(S)    ENDPOINTS   STATUS    ALIAS
+details   convoy                              9080/TCP               PENDING   
+reviews   convoy                              9080/TCP               PENDING 
+```
+
+Wait a few minutes, then check again:
+
+```bash
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get serviceexports -n bookinfo
+```
+
+Expected output after propagation:
+```
+NAME      SLICE            INGRESS   SERVICEPORT(S)   PORT(S)    ENDPOINTS   STATUS   ALIAS
+details   bookinfo-slice   false                      9080/TCP               READY    
+ratings   bookinfo-slice                              9080/TCP               READY    
+reviews   bookinfo-slice   false                      9080/TCP               READY  
+```
+
+Verify ServiceImports on Worker Cluster 1:
+
+```bash
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get serviceimports -n bookinfo
+```
+
+Expected output:
+```
+NAME      SLICE            PORT(S)    ENDPOINTS   STATUS   ALIAS
+details   bookinfo-slice   9080/TCP               READY    
+ratings   bookinfo-slice   9080/TCP               READY    
+reviews   bookinfo-slice   9080/TCP               READY    
+```
+
+### 6. Enable mTLS Security
+
+Apply strict mTLS policies to both clusters:
+
+```bash
+# Apply strict mTLS policy on Worker Cluster 1
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/peer-authentication.yaml
+
+# Apply strict mTLS policy on Worker Cluster 2
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/peer-authentication.yaml 
+```
+
+Expected output for each command:
+```
+peerauthentication.security.istio.io/default created
+authorizationpolicy.security.istio.io/bookinfo-allow created
+```
+
+### 7. Configure Authorization Policies
+
+Create authorization policies to allow necessary traffic:
+
+```bash
+# Allow access to productpage
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/istio-rbac.yaml
+
+# Allow external traffic to the ingress gateway
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/istio-allow-ingress.yaml
+```
+
+Expected output:
+```
+authorizationpolicy.security.istio.io/allow-productpage created
+authorizationpolicy.security.istio.io/allow-ingress-gateway created
+```
+
+### 8. Verify Cross-Cluster Connectivity
+
+Check DNS resolution and connectivity from the productpage pod:
+
+```bash
+# Get the productpage pod name
+PRODUCTPAGE_POD=$(kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get pods -n bookinfo -l app=productpage -o jsonpath='{.items[0].metadata.name}')
+
+# Exec into the pod to test connectivity
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 exec -it -n bookinfo $PRODUCTPAGE_POD -c netshoot -- /bin/bash
+```
+
+Once inside the pod, run these commands:
+
+```bash
+# Test DNS resolution for details service
+nslookup details
+
+# Test DNS resolution for reviews service
+nslookup reviews
+
+# Test DNS resolution for ratings service
+nslookup ratings
+```
+
+Expected output:
+```
+Server:         127.0.0.1
+Address:        127.0.0.1#53
+
+Name:   details.bookinfo.svc.cluster.local
+Address: 34.118.236.170
+
+Server:         127.0.0.1
+Address:        127.0.0.1#53
+
+Name:   reviews.bookinfo.svc.cluster.local
+Address: 34.118.231.183
+
+Server:         127.0.0.1
+Address:        127.0.0.1#53
+
+Name:   ratings.bookinfo.svc.cluster.local
+Address: 34.118.226.89
+```
+
+Type `exit` to leave the pod.
+
+### 9. Optional: Ensure Certificate Trust Between Clusters
+
+To ensure mutual trust for mTLS between clusters, copy root certificates:
+
+```bash
+# Copy root-cert from Cluster 1 to Cluster 2
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get configmap -n istio-system istio-ca-root-cert -o yaml | \
+  sed 's/namespace: istio-system/namespace: kubeslice-system/' | \
+  kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f -
+
+# Copy root-cert from Cluster 2 to Cluster 1
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get configmap -n istio-system istio-ca-root-cert -o yaml | \
+  sed 's/namespace: istio-system/namespace: kubeslice-system/' | \
+  kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f -
+```
+
+### 10. Verify mTLS Configuration
+
+Check PeerAuthentication policies on both clusters to confirm mTLS is enabled:
+
+```bash
+# Check Worker Cluster 1
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get peerauthentication -n bookinfo -o yaml
+
+# Check Worker Cluster 2
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get peerauthentication -n bookinfo -o yaml
+```
+
+Expected output should show `mode: STRICT` in the spec section:
+```yaml
+apiVersion: v1
+items:
+- apiVersion: security.istio.io/v1
+  kind: PeerAuthentication
+  metadata:
+    annotations:
+      kubectl.kubernetes.io/last-applied-configuration: |
+        {"apiVersion":"security.istio.io/v1beta1","kind":"PeerAuthentication","metadata":{"annotations":{},"name":"default","namespace":"bookinfo"},"spec":{"mtls":{"mode":"STRICT"}}}
+    creationTimestamp: "2025-08-10T15:48:31Z"
+    generation: 1
+    name: default
+    namespace: bookinfo
+    resourceVersion: "1754840911946783017"
+    uid: 9cf690b8-e895-455b-8d76-c875fdd9fa5e
+  spec:
+    mtls:
+      mode: STRICT
+kind: List
+metadata:
+  resourceVersion: ""
+```
+
+### 11. Access the Application
+
+Access the Bookinfo application using the Istio Ingress Gateway's external IP:
+
+```bash
+# Get the Ingress Gateway IP
+GATEWAY_IP=$(kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get svc istio-ingress -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+echo "Access the Bookinfo application at: http://$GATEWAY_IP/productpage"
+```
 
 ## Troubleshooting
 
-### Common Issues
+### 1. ServiceImports Stuck in PENDING State
 
-1. **Istio not installed**:
-   ```bash
-   Error: Istio not found on cluster
-   ```
-   **Solution**: Run `./install-istio.sh` first
-
-2. **Pods stuck in Pending**:
-   ```bash
-   kubectl describe pod <pod-name> -n bookinfo
-   ```
-   Check for resource constraints or scheduling issues
-
-3. **mTLS connection failures**:
-   ```bash
-   ./utils/verify_mtls.sh
-   ```
-   Verify certificates and PeerAuthentication policies
-
-4. **Cross-cluster connectivity issues**:
-   ```bash
-   kubectl get serviceimport -n bookinfo
-   kubectl get serviceexport -n bookinfo
-   ```
-   Ensure KubeSlice is properly configured
-
-5. **Blank page or "Site can't be reached" on productpage**:
-   ```bash
-   ./utils/fix-istio-ingress.sh
-   ```
-   This script diagnoses and fixes common ingress gateway issues.
-   Alternatively, check:
-   - Istio Gateway and VirtualService configuration
-   - AuthorizationPolicy to ensure it allows external traffic
-   - Istio ingress gateway logs for any errors
-   - Firewall rules to ensure port 80 is open
-
-### Debug Commands
+If ServiceImports are stuck in PENDING state:
 
 ```bash
-# Check Istio installation
-kubectl get pods -n istio-system
+# Check status
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get serviceimports -n bookinfo
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get serviceexports -n bookinfo
 
-# Verify sidecar injection
-kubectl get pods -n bookinfo -o jsonpath='{.items[*].spec.containers[*].name}'
-
-# Check mTLS certificates
-kubectl exec -n bookinfo <pod-name> -c istio-proxy -- openssl s_client -connect reviews:9080
-
-# View Envoy configuration
-kubectl exec -n bookinfo <pod-name> -c istio-proxy -- curl localhost:15000/config_dump
-
-# Check service mesh connectivity
-istioctl proxy-config cluster <pod-name> -n bookinfo
+# Delete and recreate the ServiceExport
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 delete serviceexport <service-name> -n bookinfo
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/serviceexports.yaml -n bookinfo
 ```
 
-## Architecture Details
+### 2. Istio CRDs Not Installed
 
-### mTLS Flow
-1. Service A initiates connection to Service B
-2. Istio Envoy proxy intercepts the connection
-3. Mutual certificate exchange occurs
-4. Connection is established with encryption
-5. All subsequent traffic is encrypted
+If you encounter errors about missing Istio CRDs, reinstall Istio:
 
-### Cross-Cluster Communication
-1. productpage (Cluster 1) calls reviews.bookinfo.svc.slice.local
-2. KubeSlice routes traffic to Cluster 2
-3. Istio maintains mTLS encryption across cluster boundaries
-4. reviews service responds through encrypted channel
+```bash
+# Install Istio using istioctl
+istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 -y
+istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 -y
+```
 
-### Security Policies
-- **PeerAuthentication**: Enforces STRICT mTLS for all services
-- **AuthorizationPolicy**: Controls service-to-service access
-- **Certificate Rotation**: Automatic every 24 hours via Istio CA
+### 3. Blank Productpage
 
-## Customization
+If the productpage shows a blank page or cannot be reached:
 
-### Adding New Services
-1. Create service YAML with `sidecar.istio.io/inject: "true"` annotation
-2. Add ServiceExport for cross-cluster access
-3. Update AuthorizationPolicy if needed
+```bash
+# Check if the Istio Gateway is properly configured
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get gateway -n bookinfo
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get virtualservice -n bookinfo
 
-### Modifying mTLS Policy
-Edit `peer-authentication.yaml` to change mTLS mode:
-- `STRICT` - Always require mTLS
-- `PERMISSIVE` - Allow both mTLS and plain text
-- `DISABLE` - Disable mTLS
+# Ensure authorization policies allow external traffic
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/istio-allow-ingress.yaml
+```
 
-### External Access
-The Istio Gateway exposes the productpage service externally. To access:
-1. Find the gateway external IP
-2. Access http://<gateway-ip>/productpage
+## Conclusion
 
-## Performance Considerations
+You have successfully deployed the Bookinfo application across two KubeSlice-connected clusters with Istio service mesh and mTLS enabled. The application architecture provides:
 
-- **Latency**: mTLS adds ~1-2ms latency per hop
-- **CPU**: Envoy proxies consume additional CPU (~10-50m per service)
-- **Memory**: Each sidecar uses ~50-100MB RAM
-- **Network**: Certificate exchange adds startup time (~2-5 seconds)
+1. Secure service-to-service communication with mTLS
+2. Cross-cluster service discovery via KubeSlice
+3. External access through Istio Gateway
 
-## Security Best Practices
+For more details on the architecture and features, refer to the [README.md](./README.md).
+  resourceVersion: ""
+```
 
-1. **Certificate Management**: Use short-lived certificates (default 24h)
-2. **Network Policies**: Implement Kubernetes NetworkPolicies alongside Istio
-3. **RBAC**: Configure proper service account permissions
-4. **Monitoring**: Enable Istio telemetry for security monitoring
-5. **Updates**: Keep Istio updated for security patches
+### 11. Access the Application
 
-## Monitoring and Observability
+Access the Bookinfo application using the Istio Ingress Gateway's external IP:
 
-This example can be extended with:
-- **Kiali** - Service mesh visualization
-- **Jaeger** - Distributed tracing
-- **Prometheus** - Metrics collection
-- **Grafana** - Metrics visualization
+```bash
+# Get the Ingress Gateway IP
+GATEWAY_IP=$(kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get svc istio-ingress -n istio-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 
-## Contributing
+echo "Access the Bookinfo application at: http://$GATEWAY_IP/productpage"
+```
 
-To contribute improvements:
-1. Test changes thoroughly
-2. Update documentation
-3. Verify mTLS functionality
-4. Submit pull request with examples
+## Troubleshooting
 
-## Related Examples
+### 1. ServiceImports Stuck in PENDING State
 
-- [bookinfo](../bookinfo/) - Basic version without Istio
-- [boutique](../boutique/) - Another microservices example
+If ServiceImports are stuck in PENDING state:
+
+```bash
+# Check status
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get serviceimports -n bookinfo
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 get serviceexports -n bookinfo
+
+# Delete and recreate the ServiceExport
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 delete serviceexport <service-name> -n bookinfo
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 apply -f config_files/serviceexports.yaml -n bookinfo
+```
+
+### 2. Istio CRDs Not Installed
+
+If you encounter errors about missing Istio CRDs:
+
+```bash
+# Install Istio using istioctl
+istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 -y
+istioctl install --set profile=demo --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-2 -y
+```
+
+### 3. Blank Productpage
+
+If the productpage shows a blank page or cannot be reached:
+
+```bash
+# Check if the Istio Gateway is properly configured
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get gateway -n bookinfo
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 get virtualservice -n bookinfo
+
+# Ensure authorization policies allow external traffic
+kubectl --context=gke_graphic-transit-458312-f7_us-east1_ks-worker-1 apply -f config_files/istio-allow-ingress.yaml
+```
+
+## Conclusion
+
+You have successfully deployed the Bookinfo application across two KubeSlice-connected clusters with Istio service mesh and mTLS enabled. The application architecture provides:
+
+1. Secure service-to-service communication with mTLS
+2. Cross-cluster service discovery via KubeSlice
+3. External access through Istio Gateway
+
+For more details on the architecture and features, refer to the [README.md](./README.md).
