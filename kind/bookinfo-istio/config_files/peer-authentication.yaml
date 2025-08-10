@@ -12,19 +12,14 @@ spec:
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy
 metadata:
-  name: bookinfo-allow
+  name: bookinfo-policy
   namespace: bookinfo
 spec:
+  action: ALLOW
   rules:
   - from:
     - source:
         principals: ["cluster.local/ns/bookinfo/sa/bookinfo-productpage"]
-    to:
-    - operation:
-        methods: ["GET"]
-  - from:
-    - source:
-        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-details"]
     to:
     - operation:
         methods: ["GET"]
@@ -36,27 +31,16 @@ spec:
         methods: ["GET"]
   - from:
     - source:
+        principals: ["cluster.local/ns/bookinfo/sa/bookinfo-details"]
+    to:
+    - operation:
+        methods: ["GET"]
+  - from:
+    - source:
         principals: ["cluster.local/ns/bookinfo/sa/bookinfo-ratings"]
     to:
     - operation:
         methods: ["GET"]
----
-# Apply PeerAuthentication policy to Cluster 1 (Product Cluster)
-apiVersion: security.istio.io/v1beta1
-kind: PeerAuthentication
-metadata:
-  name: default
-  namespace: bookinfo
-spec:
-  mtls:
-    mode: STRICT
----
-# Apply same policy to Cluster 2 (Services Cluster)
-apiVersion: security.istio.io/v1beta1
-kind: PeerAuthentication
-metadata:
-  name: default
-  namespace: bookinfo
-spec:
-  mtls:
-    mode: STRICT
+  - from:
+    - source:
+        namespaces: ["istio-system"]

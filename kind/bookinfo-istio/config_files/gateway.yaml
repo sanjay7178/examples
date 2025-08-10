@@ -5,14 +5,14 @@ metadata:
   namespace: bookinfo
 spec:
   selector:
-    istio: ingressgateway # use istio default controller
+    istio: ingressgateway # Use Istio default gateway implementation
   servers:
   - port:
       number: 80
       name: http
       protocol: HTTP
     hosts:
-    - "*"
+    - "*" # Allow all hosts
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService

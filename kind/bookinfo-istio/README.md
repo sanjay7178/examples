@@ -200,6 +200,17 @@ Specialized mTLS verification script that:
    ```
    Ensure KubeSlice is properly configured
 
+5. **Blank page or "Site can't be reached" on productpage**:
+   ```bash
+   ./utils/fix-istio-ingress.sh
+   ```
+   This script diagnoses and fixes common ingress gateway issues.
+   Alternatively, check:
+   - Istio Gateway and VirtualService configuration
+   - AuthorizationPolicy to ensure it allows external traffic
+   - Istio ingress gateway logs for any errors
+   - Firewall rules to ensure port 80 is open
+
 ### Debug Commands
 
 ```bash
