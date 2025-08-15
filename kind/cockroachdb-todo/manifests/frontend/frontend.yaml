@@ -1,0 +1,272 @@
+# Frontend Service - Web UI for todo application
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: frontend
+---
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: frontend
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+      annotations:
+        avesha.io/slice: todo-slice
+    spec:
+      containers:
+      - name: frontend
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        env:
+        - name: TODO_API_HOST
+          value: "todo-api.todo-app.svc.cluster.local"
+        - name: USER_SERVICE_HOST
+          value: "user-service.todo-app.svc.cluster.local"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/conf.d
+        - name: html
+          mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "300m"
+            memory: "256Mi"
+      - name: mock-frontend
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          cat > /tmp/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>CockroachDB Todo App</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+              .header { background: #f0f0f0; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+              .cluster-info { background: #e8f5e8; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+              .tenant-selector { background: #fff3cd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+              .todo-list { background: #f8f9fa; padding: 15px; border-radius: 5px; }
+              .btn { padding: 10px 20px; margin: 5px; background: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+              .btn:hover { background: #0056b3; }
+              .tenant-btn { background: #28a745; }
+              .tenant-btn.active { background: #155724; }
+              .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+              .stat-card { background: white; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>🗂️ Multi-Cluster Todo Application</h1>
+              <p>Powered by CockroachDB distributed across KubeSlice clusters</p>
+            </div>
+            
+            <div class="cluster-info">
+              <h2>🌐 Multi-Cluster Architecture</h2>
+              <div class="stats">
+                <div class="stat-card">
+                  <h3>Database Cluster</h3>
+                  <p>Primary CockroachDB node<br/>
+                  <small>Controller cluster</small></p>
+                </div>
+                <div class="stat-card">
+                  <h3>API Services Cluster</h3>
+                  <p>Todo API + CockroachDB node<br/>
+                  <small>Worker-1 cluster</small></p>
+                </div>
+                <div class="stat-card">
+                  <h3>Frontend Cluster</h3>
+                  <p>UI + CockroachDB node<br/>
+                  <small>Worker-2 cluster (current)</small></p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="tenant-selector">
+              <h2>👥 Multi-Tenant Demo</h2>
+              <p>Select a tenant to see different feature sets:</p>
+              <button class="btn tenant-btn" onclick="switchTenant('tenant-a')">Tenant A - Free Tier</button>
+              <button class="btn tenant-btn" onclick="switchTenant('tenant-b')">Tenant B - Premium</button>
+              <button class="btn tenant-btn" onclick="switchTenant('tenant-c')">Tenant C - Enterprise</button>
+              <div id="tenant-info" style="margin-top: 15px;">
+                <p><strong>Current Tenant:</strong> <span id="current-tenant">None selected</span></p>
+                <p><strong>Features:</strong> <span id="tenant-features">-</span></p>
+                <p><strong>Todo Limit:</strong> <span id="tenant-limit">-</span></p>
+              </div>
+            </div>
+            
+            <div class="todo-list">
+              <h2>📝 Todo Management</h2>
+              <div>
+                <input type="text" id="new-todo" placeholder="Enter a new todo..." style="width: 60%; padding: 10px;">
+                <button class="btn" onclick="addTodo()">Add Todo</button>
+              </div>
+              <div id="todos" style="margin-top: 20px;">
+                <p>Select a tenant above to start managing todos</p>
+              </div>
+            </div>
+            
+            <div class="stats">
+              <div class="stat-card">
+                <h3>🔄 Cross-Cluster Communication</h3>
+                <p>Frontend ↔ Todo API ↔ User Service</p>
+                <small>Via KubeSlice ServiceExports</small>
+              </div>
+              <div class="stat-card">
+                <h3>🗄️ Distributed Database</h3>
+                <p>3 CockroachDB nodes across clusters</p>
+                <small>Automatic replication & consistency</small>
+              </div>
+              <div class="stat-card">
+                <h3>🏢 Multi-Tenant Isolation</h3>
+                <p>Schema-based tenant separation</p>
+                <small>Tenant-aware routing</small>
+              </div>
+              <div class="stat-card">
+                <h3>🚀 High Availability</h3>
+                <p>Survives cluster failures</p>
+                <small>Distributed consensus</small>
+              </div>
+            </div>
+            
+            <script>
+              let currentTenant = null;
+              
+              const tenantInfo = {
+                'tenant-a': {
+                  name: 'Free Tier',
+                  features: ['Basic todos', 'Limited storage'],
+                  limit: '100 todos'
+                },
+                'tenant-b': {
+                  name: 'Premium Tier', 
+                  features: ['Basic todos', 'Advanced search', 'Collaboration'],
+                  limit: '1000 todos'
+                },
+                'tenant-c': {
+                  name: 'Enterprise Tier',
+                  features: ['All features', 'Analytics', 'Custom fields'],
+                  limit: 'Unlimited'
+                }
+              };
+              
+              function switchTenant(tenantId) {
+                currentTenant = tenantId;
+                const info = tenantInfo[tenantId];
+                
+                document.getElementById('current-tenant').textContent = info.name;
+                document.getElementById('tenant-features').textContent = info.features.join(', ');
+                document.getElementById('tenant-limit').textContent = info.limit;
+                
+                // Update active button
+                document.querySelectorAll('.tenant-btn').forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+                
+                loadTodos();
+              }
+              
+              function loadTodos() {
+                if (!currentTenant) return;
+                
+                // Simulate API call to todo service
+                const todosDiv = document.getElementById('todos');
+                todosDiv.innerHTML = `
+                  <h3>Todos for ${tenantInfo[currentTenant].name}</h3>
+                  <div style="background: white; padding: 15px; border-radius: 5px; margin-top: 10px;">
+                    <p>✅ Sample todo item 1</p>
+                    <p>⏳ Sample todo item 2 (in progress)</p>
+                    <p style="color: #666; font-style: italic;">
+                      API endpoint: todo-api.todo-app.svc.cluster.local/api/todos<br/>
+                      Tenant header: X-Tenant-ID: ${currentTenant}
+                    </p>
+                  </div>
+                `;
+              }
+              
+              function addTodo() {
+                if (!currentTenant) {
+                  alert('Please select a tenant first');
+                  return;
+                }
+                
+                const input = document.getElementById('new-todo');
+                const todoText = input.value.trim();
+                
+                if (todoText) {
+                  alert(`Todo "${todoText}" would be added for ${tenantInfo[currentTenant].name}`);
+                  input.value = '';
+                  loadTodos();
+                }
+              }
+            </script>
+          </body>
+          </html>
+          EOF
+          
+          cat > /tmp/default.conf << 'EOF'
+          server {
+              listen 8080;
+              server_name localhost;
+              
+              location / {
+                  root /usr/share/nginx/html;
+                  index index.html;
+              }
+              
+              location /api/ {
+                  proxy_pass http://todo-api.todo-app.svc.cluster.local/;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              }
+          }
+          EOF
+          
+          cp /tmp/index.html /shared/html/
+          cp /tmp/default.conf /shared/conf/
+          while true; do sleep 30; done
+        volumeMounts:
+        - name: html
+          mountPath: /shared/html
+        - name: config
+          mountPath: /shared/conf
+      volumes:
+      - name: config
+        emptyDir: {}
+      - name: html
+        emptyDir: {}

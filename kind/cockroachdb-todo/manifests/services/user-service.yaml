@@ -1,0 +1,156 @@
+# User Management Service - Handles authentication and tenant management
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+data:
+  config.yaml: |
+    database:
+      host: "cockroachdb.todo-app.svc.cluster.local"
+      port: "26257"
+      name: "tododb"
+      user: "root"
+      sslmode: "disable"
+    tenants:
+      - id: "tenant-a"
+        name: "Free Tier"
+        features: ["basic_todos", "limited_storage"]
+        max_todos: 100
+      - id: "tenant-b" 
+        name: "Premium Tier"
+        features: ["basic_todos", "advanced_search", "collaboration"]
+        max_todos: 1000
+      - id: "tenant-c"
+        name: "Enterprise Tier"
+        features: ["basic_todos", "advanced_search", "collaboration", "analytics", "custom_fields"]
+        max_todos: -1
+    auth:
+      jwt_secret: "demo-secret-key-change-in-production"
+      token_expiry: "24h"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  labels:
+    app: user-service
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: user-service
+---
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: user-service
+spec:
+  selector:
+    matchLabels:
+      app: user-service
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  labels:
+    app: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+      annotations:
+        avesha.io/slice: todo-slice
+    spec:
+      containers:
+      - name: user-service
+        image: nginx:alpine  # Placeholder - in real scenario would be custom service
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/conf.d
+        - name: html
+          mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+      - name: mock-user-api
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          cat > /tmp/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>User Service API</title></head>
+          <body>
+            <h1>Todo App User Service</h1>
+            <h2>Multi-Tenant Authentication Service</h2>
+            <div>
+              <h3>Available Tenants:</h3>
+              <ul>
+                <li><strong>tenant-a</strong> - Free Tier (100 todos max)</li>
+                <li><strong>tenant-b</strong> - Premium Tier (1000 todos max)</li>
+                <li><strong>tenant-c</strong> - Enterprise Tier (unlimited)</li>
+              </ul>
+            </div>
+            <div>
+              <h3>API Endpoints:</h3>
+              <ul>
+                <li>GET /api/auth/login - Authenticate user</li>
+                <li>GET /api/auth/validate - Validate token</li>
+                <li>GET /api/tenants - List tenant information</li>
+                <li>GET /api/users - List users for tenant</li>
+              </ul>
+            </div>
+            <p>Connected to CockroachDB at: cockroachdb.todo-app.svc.cluster.local:26257</p>
+          </body>
+          </html>
+          EOF
+          
+          cat > /tmp/default.conf << 'EOF'
+          server {
+              listen 8080;
+              server_name localhost;
+              
+              location / {
+                  root /usr/share/nginx/html;
+                  index index.html;
+              }
+              
+              location /api/ {
+                  add_header Content-Type application/json;
+                  return 200 '{"status":"ok","service":"user-service","cluster":"database","tenant_count":3}';
+              }
+          }
+          EOF
+          
+          cp /tmp/index.html /shared/html/
+          cp /tmp/default.conf /shared/conf/
+          while true; do sleep 30; done
+        volumeMounts:
+        - name: html
+          mountPath: /shared/html
+        - name: config
+          mountPath: /shared/conf
+      volumes:
+      - name: config
+        emptyDir: {}
+      - name: html
+        emptyDir: {}

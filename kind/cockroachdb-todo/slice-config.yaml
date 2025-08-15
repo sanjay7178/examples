@@ -1,0 +1,35 @@
+apiVersion: controller.kubeslice.io/v1alpha1
+kind: SliceConfig
+metadata:
+  name: todo-slice
+spec:
+  sliceSubnet: 10.2.0.0/16
+  sliceType: Application
+  sliceGatewayProvider:
+    sliceGatewayType: OpenVPN
+    sliceCaType: Local
+  sliceIpamType: Local
+  clusters:
+    - controller  # Database primary cluster
+    - worker-1    # API services cluster
+    - worker-2    # Frontend cluster
+  qosProfileDetails:
+    queueType: HTB
+    priority: 1
+    tcType: BANDWIDTH_CONTROL
+    bandwidthCeilingKbps: 10240  # Higher bandwidth for database replication
+    bandwidthGuaranteedKbps: 5120
+    dscpClass: AF11
+  namespaceIsolationProfile:
+    applicationNamespaces:
+     - namespace: todo-app
+       clusters:
+       - '*'
+    isolationEnabled: false  # Allow cross-cluster database communication
+    allowedNamespaces:
+     - namespace: kube-system
+       clusters:
+       - '*'
+     - namespace: kubeslice-system
+       clusters:
+       - '*'
