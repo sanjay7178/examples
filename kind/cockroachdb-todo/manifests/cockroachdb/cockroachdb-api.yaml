@@ -1,0 +1,127 @@
+# CockroachDB API Node - API Services Cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockroachdb-api
+  labels:
+    app: cockroachdb
+    cluster-role: api
+spec:
+  ports:
+  - port: 26257
+    targetPort: 26257
+    name: grpc
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: cockroachdb
+    cluster-role: api
+---
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: cockroachdb-api
+spec:
+  selector:
+    matchLabels:
+      app: cockroachdb
+      cluster-role: api
+  ports:
+  - name: grpc
+    port: 26257
+    protocol: TCP
+  - name: http
+    port: 8080
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cockroachdb-api
+  labels:
+    app: cockroachdb
+    cluster-role: api
+spec:
+  serviceName: cockroachdb-api
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cockroachdb
+      cluster-role: api
+  template:
+    metadata:
+      labels:
+        app: cockroachdb
+        cluster-role: api
+      annotations:
+        avesha.io/slice: todo-slice
+    spec:
+      containers:
+      - name: cockroachdb
+        image: cockroachdb/cockroach:v23.1.0
+        ports:
+        - containerPort: 26257
+          name: grpc
+        - containerPort: 8080
+          name: http
+        livenessProbe:
+          httpGet:
+            path: "/health"
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: "/health?ready=1"
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 2
+        volumeMounts:
+        - name: datadir
+          mountPath: /cockroach/cockroach-data
+        env:
+        - name: COCKROACH_CHANNEL
+          value: kubernetes-multiregion
+        - name: GOMAXPROCS
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.cpu
+              divisor: "1"
+        - name: MEMORY_LIMIT_MIB
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.memory
+              divisor: "1Mi"
+        command:
+          - "/bin/bash"
+          - "-ecx"
+          - exec
+            /cockroach/cockroach
+            start
+            --logtostderr
+            --insecure
+            --advertise-host=$(hostname -f)
+            --http-addr=0.0.0.0
+            --join=cockroachdb-0.cockroachdb.todo-app.svc.cluster.local,cockroachdb-api-0.cockroachdb-api.todo-app.svc.cluster.local,cockroachdb-frontend-0.cockroachdb-frontend.todo-app.svc.cluster.local
+            --cache=25%
+            --max-sql-memory=25%
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1000m"
+            memory: "2Gi"
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi

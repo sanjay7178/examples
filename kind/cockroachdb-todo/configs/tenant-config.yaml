@@ -1,0 +1,114 @@
+# Tenant Configuration for CockroachDB Todo Application
+
+tenants:
+  tenant-a:
+    name: "Free Tier"
+    description: "Basic todo functionality for individual users"
+    features:
+      - basic_todos
+      - limited_storage
+    limits:
+      max_todos: 100
+      max_users: 10
+      storage_mb: 100
+    database_schema: "tenant_a"
+    cluster_preference: "any"
+    
+  tenant-b:
+    name: "Premium Tier"
+    description: "Enhanced features for small teams"
+    features:
+      - basic_todos
+      - advanced_search
+      - collaboration
+      - tags_categories
+      - sharing
+    limits:
+      max_todos: 1000
+      max_users: 50
+      storage_mb: 1000
+    database_schema: "tenant_b"
+    cluster_preference: "api-services"
+    
+  tenant-c:
+    name: "Enterprise Tier"
+    description: "Full feature set for large organizations"
+    features:
+      - basic_todos
+      - advanced_search
+      - collaboration
+      - tags_categories
+      - sharing
+      - custom_fields
+      - analytics
+      - workflows
+      - time_tracking
+      - reporting
+    limits:
+      max_todos: -1  # unlimited
+      max_users: -1  # unlimited
+      storage_mb: -1  # unlimited
+    database_schema: "tenant_c"
+    cluster_preference: "database"
+
+# Feature definitions
+features:
+  basic_todos:
+    description: "Create, read, update, delete todos"
+    api_endpoints: ["/api/todos"]
+    
+  advanced_search:
+    description: "Full-text search across todos"
+    api_endpoints: ["/api/search"]
+    
+  collaboration:
+    description: "Share todos with team members"
+    api_endpoints: ["/api/sharing", "/api/team"]
+    
+  tags_categories:
+    description: "Organize todos with tags and categories"
+    api_endpoints: ["/api/tags", "/api/categories"]
+    
+  sharing:
+    description: "Share individual todos"
+    api_endpoints: ["/api/todos/{id}/share"]
+    
+  custom_fields:
+    description: "Add custom metadata to todos"
+    api_endpoints: ["/api/todos/{id}/fields"]
+    
+  analytics:
+    description: "Usage analytics and insights"
+    api_endpoints: ["/api/analytics"]
+    
+  workflows:
+    description: "Custom workflow states"
+    api_endpoints: ["/api/workflows"]
+    
+  time_tracking:
+    description: "Track time spent on todos"
+    api_endpoints: ["/api/timetrack"]
+    
+  reporting:
+    description: "Generate reports and exports"
+    api_endpoints: ["/api/reports"]
+
+# Cluster configuration
+clusters:
+  database:
+    name: "Database Primary"
+    role: "primary-db"
+    services: ["cockroachdb", "user-service"]
+    k8s_cluster: "kind-controller"
+    
+  api-services:
+    name: "API Services"
+    role: "api"
+    services: ["cockroachdb", "todo-api", "auth-service"]
+    k8s_cluster: "kind-worker-1"
+    
+  frontend:
+    name: "Frontend & Load Generation"
+    role: "frontend"
+    services: ["cockroachdb", "frontend", "load-generator"]
+    k8s_cluster: "kind-worker-2"

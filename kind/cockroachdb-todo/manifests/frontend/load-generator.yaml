@@ -1,0 +1,170 @@
+# Load Generator - Simulates multi-tenant traffic
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: load-generator-script
+data:
+  load-test.sh: |
+    #!/bin/bash
+    
+    echo "Starting multi-tenant load generation..."
+    
+    TENANTS=("tenant-a" "tenant-b" "tenant-c")
+    TODO_API="http://todo-api.todo-app.svc.cluster.local"
+    USER_API="http://user-service.todo-app.svc.cluster.local"
+    
+    # Function to generate load for a tenant
+    generate_tenant_load() {
+        local tenant=$1
+        local requests=$2
+        
+        echo "Generating $requests requests for $tenant..."
+        
+        for i in $(seq 1 $requests); do
+            # Test user service
+            curl -s -H "X-Tenant-ID: $tenant" "$USER_API/api/" > /dev/null
+            
+            # Test todo API
+            curl -s -H "X-Tenant-ID: $tenant" "$TODO_API/api/todos" > /dev/null
+            curl -s -H "X-Tenant-ID: $tenant" "$TODO_API/api/stats" > /dev/null
+            
+            sleep 0.1
+        done
+        
+        echo "Completed $requests requests for $tenant"
+    }
+    
+    while true; do
+        echo "--- Starting load generation cycle ---"
+        
+        # Different load patterns for different tenants
+        generate_tenant_load "tenant-a" 10 &  # Free tier - lower load
+        generate_tenant_load "tenant-b" 25 &  # Premium tier - medium load  
+        generate_tenant_load "tenant-c" 50 &  # Enterprise tier - high load
+        
+        wait
+        
+        echo "Load generation cycle completed. Waiting 30 seconds..."
+        sleep 30
+    done
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: load-generator
+  labels:
+    app: load-generator
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: load-generator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  labels:
+    app: load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+      annotations:
+        avesha.io/slice: todo-slice
+    spec:
+      containers:
+      - name: load-generator
+        image: curlimages/curl:latest
+        command: ["/bin/sh"]
+        args: ["/scripts/load-test.sh"]
+        volumeMounts:
+        - name: scripts
+          mountPath: /scripts
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "64Mi"
+          limits:
+            cpu: "100m"
+            memory: "128Mi"
+      - name: metrics-server
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html
+        - name: config
+          mountPath: /etc/nginx/conf.d
+      - name: metrics-generator
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          cat > /tmp/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>Load Generator Metrics</title></head>
+          <body>
+            <h1>🚀 Multi-Tenant Load Generator</h1>
+            <h2>Real-time Traffic Simulation</h2>
+            <div>
+              <h3>Current Load Patterns:</h3>
+              <ul>
+                <li><strong>Tenant A (Free):</strong> 10 requests/cycle (low volume)</li>
+                <li><strong>Tenant B (Premium):</strong> 25 requests/cycle (medium volume)</li>
+                <li><strong>Tenant C (Enterprise):</strong> 50 requests/cycle (high volume)</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Target Services:</h3>
+              <ul>
+                <li>User Service: user-service.todo-app.svc.cluster.local</li>
+                <li>Todo API: todo-api.todo-app.svc.cluster.local</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Cross-Cluster Communication:</h3>
+              <p>Load generator in Frontend cluster → API services in API cluster → User service in Database cluster</p>
+            </div>
+            <p><em>Cycle repeats every 30 seconds</em></p>
+          </body>
+          </html>
+          EOF
+          
+          cat > /tmp/default.conf << 'EOF'
+          server {
+              listen 8080;
+              server_name localhost;
+              location / {
+                  root /usr/share/nginx/html;
+                  index index.html;
+              }
+          }
+          EOF
+          
+          cp /tmp/index.html /shared/html/
+          cp /tmp/default.conf /shared/conf/
+          while true; do sleep 60; done
+        volumeMounts:
+        - name: html
+          mountPath: /shared/html
+        - name: config
+          mountPath: /shared/conf
+      volumes:
+      - name: scripts
+        configMap:
+          name: load-generator-script
+          defaultMode: 0755
+      - name: html
+        emptyDir: {}
+      - name: config
+        emptyDir: {}

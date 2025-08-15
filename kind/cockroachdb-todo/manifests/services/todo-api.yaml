@@ -1,0 +1,168 @@
+# Todo API Service - Main business logic service
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-api-config
+data:
+  config.yaml: |
+    database:
+      host: "cockroachdb-api.todo-app.svc.cluster.local"
+      port: "26257"
+      name: "tododb"
+      user: "root"
+      sslmode: "disable"
+    services:
+      user_service: "user-service.todo-app.svc.cluster.local"
+    features:
+      multi_tenant: true
+      analytics: true
+      search: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-api
+  labels:
+    app: todo-api
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+  selector:
+    app: todo-api
+---
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+  name: todo-api
+spec:
+  selector:
+    matchLabels:
+      app: todo-api
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-api
+  labels:
+    app: todo-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: todo-api
+  template:
+    metadata:
+      labels:
+        app: todo-api
+      annotations:
+        avesha.io/slice: todo-slice
+    spec:
+      containers:
+      - name: todo-api
+        image: nginx:alpine
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "cockroachdb-api.todo-app.svc.cluster.local"
+        - name: USER_SERVICE_HOST
+          value: "user-service.todo-app.svc.cluster.local"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/conf.d
+        - name: html
+          mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+      - name: mock-todo-api
+        image: busybox
+        command: ['sh', '-c']
+        args:
+        - |
+          cat > /tmp/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>Todo API Service</title></head>
+          <body>
+            <h1>Todo API Service</h1>
+            <h2>Multi-Tenant Todo Management</h2>
+            <div>
+              <h3>API Endpoints:</h3>
+              <ul>
+                <li>GET /api/todos - List todos for tenant</li>
+                <li>POST /api/todos - Create new todo</li>
+                <li>PUT /api/todos/{id} - Update todo</li>
+                <li>DELETE /api/todos/{id} - Delete todo</li>
+                <li>GET /api/stats - Get tenant statistics</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Multi-Tenant Usage:</h3>
+              <p>Include <code>X-Tenant-ID</code> header in all requests:</p>
+              <ul>
+                <li><code>X-Tenant-ID: tenant-a</code> - Free tier</li>
+                <li><code>X-Tenant-ID: tenant-b</code> - Premium tier</li>
+                <li><code>X-Tenant-ID: tenant-c</code> - Enterprise tier</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Cluster Information:</h3>
+              <p>Running in: API Services Cluster (Worker-1)</p>
+              <p>Database: cockroachdb-api.todo-app.svc.cluster.local:26257</p>
+              <p>User Service: user-service.todo-app.svc.cluster.local</p>
+            </div>
+          </body>
+          </html>
+          EOF
+          
+          cat > /tmp/default.conf << 'EOF'
+          server {
+              listen 8080;
+              server_name localhost;
+              
+              location / {
+                  root /usr/share/nginx/html;
+                  index index.html;
+              }
+              
+              location /api/todos {
+                  add_header Content-Type application/json;
+                  return 200 '{"todos":[{"id":1,"title":"Sample Todo","completed":false,"tenant":"$http_x_tenant_id"}],"cluster":"api-services","db":"cockroachdb-api"}';
+              }
+              
+              location /api/stats {
+                  add_header Content-Type application/json;
+                  return 200 '{"tenant":"$http_x_tenant_id","total_todos":1,"cluster":"api-services","db_node":"cockroachdb-api"}';
+              }
+              
+              location /api/ {
+                  add_header Content-Type application/json;
+                  return 200 '{"status":"ok","service":"todo-api","cluster":"api-services"}';
+              }
+          }
+          EOF
+          
+          cp /tmp/index.html /shared/html/
+          cp /tmp/default.conf /shared/conf/
+          while true; do sleep 30; done
+        volumeMounts:
+        - name: html
+          mountPath: /shared/html
+        - name: config
+          mountPath: /shared/conf
+      volumes:
+      - name: config
+        emptyDir: {}
+      - name: html
+        emptyDir: {}
