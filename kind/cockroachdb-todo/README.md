@@ -2,6 +2,8 @@
 
 This example demonstrates a **multi-cluster, multi-tenant** todo application using **distributed CockroachDB** on KubeSlice clusters. 
 
+![Frontend Preview](frontend-preview.png)
+
 ## Architecture Overview
 
 This example showcases:
