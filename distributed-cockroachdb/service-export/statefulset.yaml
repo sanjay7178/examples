@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cockroachdb
+  namespace: cockroachdb
+spec:
+  serviceName: "cockroachdb"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cockroachdb
+  template:
+    metadata:
+      labels:
+        app: cockroachdb
+    spec:
+      containers:
+      - name: cockroachdb
+        image: cockroachdb/cockroach:latest
+        ports:
+        - containerPort: 26257
+          name: grpc
+        - containerPort: 8080
+          name: http
+        command:
+          - "/cockroach/cockroach"
+          - "start"
+          - "--insecure"
+          - "--advertise-addr=cockroachdb-2.cockroachdb.svc.cluster.local"
+          - "--join=cockroachdb-0.cockroachdb.svc.cluster.local:26257,cockroachdb-1.cockroachdb.svc.cluster.local:26257,cockroachdb-2.cockroachdb.svc.cluster.local:26257"
+          - "--cache=25%"
+          - "--max-sql-memory=25%"
+        volumeMounts:
+        - name: datadir
+          mountPath: /cockroach/cockroach-data
+      - name: netshoot
+        image: nicolaka/netshoot
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sleep", "3650d"]
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN"]
+          allowPrivilegeEscalation: true
+          privileged: true
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockroachdb
+  namespace: cockroachdb
+spec:
+  ports:
+  - port: 26257
+    targetPort: 26257
+    name: grpc
+  - port: 8080
+    targetPort: 8080
+    name: http
+  selector:
+    app: cockroachdb
