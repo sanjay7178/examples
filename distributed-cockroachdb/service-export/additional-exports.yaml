@@ -1,0 +1,22 @@
+# Standard CockroachDB Service Export (Headless Service)
+# This exports the main CockroachDB service for cross-cluster access
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+ name: cockroachdb-headless
+ namespace: cockroachdb
+spec:
+ slice: cockroachdb-slice
+ selector:
+   matchLabels:
+     app: cockroachdb
+ ingressEnabled: false
+ aliases:
+ - cockroachdb.cockroachdb.svc.cluster.local
+ ports:
+ - name: grpc
+   containerPort: 26257
+   protocol: TCP
+ - name: http
+   containerPort: 8080
+   protocol: TCP

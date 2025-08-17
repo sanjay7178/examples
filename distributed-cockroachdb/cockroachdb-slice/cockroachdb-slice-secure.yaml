@@ -1,0 +1,57 @@
+apiVersion: controller.kubeslice.io/v1alpha1
+kind: SliceConfig
+metadata:
+  name: cockroachdb-slice-secure
+  namespace: kubeslice-cockroachdb-project
+spec:
+  sliceSubnet: 192.168.0.0/16
+  sliceType: Application
+  sliceGatewayProvider:
+    sliceGatewayType: OpenVPN
+    sliceCaType: Local
+    sliceGatewayServiceType:
+      - cluster: worker-1
+        type: LoadBalancer
+        protocol: TCP
+      - cluster: worker-2
+        type: LoadBalancer
+        protocol: TCP
+      - cluster: worker-3
+        type: LoadBalancer
+        protocol: TCP
+  sliceIpamType: Local
+  clusters:
+    - worker-1
+    - worker-2
+    - worker-3
+  qosProfileDetails:
+    queueType: HTB
+    priority: 0  # Higher priority for database traffic
+    tcType: BANDWIDTH_CONTROL
+    bandwidthCeilingKbps: 10240  # Higher bandwidth for database replication
+    bandwidthGuaranteedKbps: 5120
+    dscpClass: AF31  # Higher QoS class for database traffic
+  namespaceIsolationProfile:
+    applicationNamespaces:
+    - namespace: cockroachdb
+      clusters:
+      - worker-1
+      - worker-2
+      - worker-3
+    - namespace: cockroachdb-monitoring  # Additional namespace for monitoring
+      clusters:
+      - worker-1
+      - worker-2
+      - worker-3
+    isolationEnabled: true  # Enable isolation for security
+    allowedNamespaces:
+     - namespace: kube-system
+       clusters:
+       - worker-1
+       - worker-2
+       - worker-3
+     - namespace: cert-manager  # Allow cert-manager for TLS certificates
+       clusters:
+       - worker-1
+       - worker-2
+       - worker-3
