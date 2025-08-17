@@ -1,0 +1,20 @@
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+ name: cockroachdb-1
+ namespace: cockroachdb
+spec:
+ slice: cockroachdb-slice
+ selector:
+   matchLabels:
+     statefulset.kubernetes.io/pod-name: cockroachdb-1
+ ingressEnabled: false
+ aliases:
+ - cockroachdb-1.cockroachdb.svc.cluster.local
+ ports:
+ - name: grpc
+   containerPort: 26257
+   protocol: TCP
+ - name: http
+   containerPort: 8080
+   protocol: TCP
