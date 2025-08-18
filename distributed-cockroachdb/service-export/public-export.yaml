@@ -1,0 +1,22 @@
+# CockroachDB Public Service Export (for external access)
+# This exports CockroachDB with ingress enabled for external connectivity
+apiVersion: networking.kubeslice.io/v1beta1
+kind: ServiceExport
+metadata:
+ name: cockroachdb-public
+ namespace: cockroachdb
+spec:
+ slice: cockroachdb-slice
+ selector:
+   matchLabels:
+     app: cockroachdb
+ ingressEnabled: true
+ aliases:
+ - cockroachdb-public.cockroachdb.svc.cluster.local
+ ports:
+ - name: grpc
+   containerPort: 26257
+   protocol: TCP
+ - name: http
+   containerPort: 8080
+   protocol: TCP
