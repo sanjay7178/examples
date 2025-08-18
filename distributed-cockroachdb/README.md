@@ -137,14 +137,6 @@ Each cluster exports its CockroachDB service with:
 - **HTTP Port**: 8080 (admin UI and API)
 - **DNS Aliases**: `cockroachdb-{0,1,2}.cockroachdb.svc.cluster.local`
 
-### Security Considerations
-This example uses `--insecure` mode for simplicity. For production deployments:
-1. Enable TLS/SSL encryption
-2. Set up proper authentication
-3. Configure network policies
-4. Use secrets for certificates and keys
-
-
 ### Monitoring
 - Access CockroachDB Admin UI: `kubectl port-forward svc/cockroachdb 8080:8080 -n cockroachdb`
 - View logs: `kubectl logs -f cockroachdb-0 -n cockroachdb`
