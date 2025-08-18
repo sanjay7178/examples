@@ -10,31 +10,6 @@ The setup consists of:
 - **CockroachDB nodes** distributed across the worker clusters
 - **KubeSlice networking** connecting all clusters via a secure overlay network
 
-Each worker cluster runs one CockroachDB node, and all nodes form a single distributed database cluster that can handle distributed SQL queries, automatic failover, and horizontal scaling.
-
-## Prerequisites
-
-1. **KubeSlice Controller Setup**: A controller cluster with KubeSlice controller installed
-2. **Multiple Kubernetes Clusters**: 3 worker clusters registered with the KubeSlice controller
-3. **kubectl**: Configured to access all clusters
-4. **kubeslice-cli**: For automated setup (optional)
-
-## Directory Structure
-
-```
-distributed-cockroachdb/
-├── kubeslice-cli-topology-template/     # KubeSlice infrastructure templates
-│   ├── kubeslice-cli-topology-template.yaml
-│   └── kubeslice-cli-topology-oss-template.yaml
-├── cockroachdb-slice/                   # Slice configuration files
-│   ├── cockroachdb-slice.yaml
-│   └── cockroachdb-slice-lb.yaml
-├── service-export/                      # Service export configurations
-│   ├── k8s-cluster-1.yaml
-│   ├── k8s-cluster-2.yaml
-│   └── k8s-cluster-3.yaml
-└── README.md
-```
 
 ## Setup Instructions
 
@@ -74,69 +49,16 @@ Create the `cockroachdb` namespace on all worker clusters:
 kubectl create namespace cockroachdb
 ```
 
-Deploy CockroachDB using a StatefulSet. Here's an example manifest for each cluster:
-
-**Worker-1 (cockroachdb-0):**
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: cockroachdb
-  namespace: cockroachdb
-spec:
-  serviceName: "cockroachdb"
-  replicas: 1
-  selector:
-    matchLabels:
-      app: cockroachdb
-  template:
-    metadata:
-      labels:
-        app: cockroachdb
-    spec:
-      containers:
-      - name: cockroachdb
-        image: cockroachdb/cockroach:latest
-        ports:
-        - containerPort: 26257
-          name: grpc
-        - containerPort: 8080
-          name: http
-        command:
-          - "/cockroach/cockroach"
-          - "start"
-          - "--insecure"
-          - "--advertise-addr=cockroachdb-0.cockroachdb.svc.cluster.local"
-          - "--join=cockroachdb-0.cockroachdb.svc.cluster.local:26257,cockroachdb-1.cockroachdb.svc.cluster.local:26257,cockroachdb-2.cockroachdb.svc.cluster.local:26257"
-          - "--cache=25%"
-          - "--max-sql-memory=25%"
-        volumeMounts:
-        - name: datadir
-          mountPath: /cockroach/cockroach-data
-  volumeClaimTemplates:
-  - metadata:
-      name: datadir
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      resources:
-        requests:
-          storage: 10Gi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: cockroachdb
-  namespace: cockroachdb
-spec:
-  ports:
-  - port: 26257
-    targetPort: 26257
-    name: grpc
-  - port: 8080
-    targetPort: 8080
-    name: http
-  selector:
-    app: cockroachdb
+```bash
+# Apply on worker 1 
+kubectx worker-1 
+kubectl apply -f service-export/k8s-cluster-1.yaml
+# Apply on worker 2
+kubectx worker-2
+kubectl apply -f service-export/k8s-cluster-2.yaml
+# Apply on worker 3
+kubectx worker-3
+kubectl apply -f service-export/k8s-cluster-3.yaml
 ```
 
 **Important**: Update the `--advertise-addr` and node names for each cluster:
@@ -222,29 +144,11 @@ This example uses `--insecure` mode for simplicity. For production deployments:
 3. Configure network policies
 4. Use secrets for certificates and keys
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Nodes cannot discover each other**:
-   - Check ServiceExport and ServiceImport status
-   - Verify KubeSlice connectivity
-   - Ensure DNS names are resolvable
-
-2. **Cluster initialization fails**:
-   - Ensure all nodes are running before initialization
-   - Check for network connectivity issues
-   - Verify join addresses are correct
-
-3. **Performance issues**:
-   - Adjust QoS settings in slice configuration
-   - Monitor network latency between clusters
-   - Check resource allocation for CockroachDB pods
 
 ### Monitoring
 - Access CockroachDB Admin UI: `kubectl port-forward svc/cockroachdb 8080:8080 -n cockroachdb`
 - View logs: `kubectl logs -f cockroachdb-0 -n cockroachdb`
-- Check slice status: `kubectl get slice -n kubeslice-system`
+- Check slice status: `kubectl get sliceconfig -n kubeslice-system`
 
 ## Cleanup
 
